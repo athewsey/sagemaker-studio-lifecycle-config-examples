@@ -5,6 +5,7 @@
 ### Custom/Non-Standard Scripts
 
 * [custom-dns-fix](scripts/custom-dns-fix) - A horrible temporary workaround for a broken VPC DNS environment. You don't want to use this.
+* [custom-install-s3-browser-extension](scripts/custom-install-s3-browser-extension) - This visual S3 browser extension is pretty easy to install on JupyterLab v3. I was trying to also make it work on JLv1 (for a script that's portable between the two) but never quite got it working.
 
 ### Overview
 
