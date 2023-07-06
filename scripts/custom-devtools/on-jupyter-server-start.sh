@@ -63,6 +63,7 @@ jupyter server extension enable amazon_codewhisperer_jupyterlab_ext
 # Improve autocomplete source links by symlinking /opt packages from local folder and allowing
 # opening of these symlinked files (outside the user home directory):
 mkdir -p .lsp_symlink
+rm .lsp_symlink/opt
 ln -s /opt .lsp_symlink/opt
 echo yes | jupyter server --generate-config
 sed -i '1i c.ContentsManager.allow_hidden = True' .jupyter/jupyter_server_config.py
