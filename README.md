@@ -7,6 +7,8 @@
 * [custom-check-jl-version](scripts/custom-check-jl-version) - A snippet showing ways to detect and branch on the current JupyterLab version in Studio LCCs, and which conda environments & JupyterServer restart tools to use in each one.
 * [custom-devtools](scripts/custom-devtools) - Similar to [install-lsp-features](scripts/install-lsp-features), but extended with some other useful developer tooling including CodeWhisperer, S3 browser.
 * [custom-devtools-autoshutdown](scripts/custom-devtools-autoshutdown) - Similar to [custom-devtools](scripts/custom-devtools), but combined with [install-autoshutdown-server-extension](scripts/install-autoshutdown-server-extension)
+* [custom-devtools-codeserver](scripts/custom-devtools-codeserver) - Extension of [custom-devtools](scripts/custom-devtools) that also [installs (VS)Code Server on Studio](https://github.com/aws-samples/amazon-sagemaker-codeserver)
+    * ⚠️ **Known issue:** In recent tests, this one breaks the 'Launcher' (will not show at all). However, Code is still accessible at `/jupyter/default/codeserver` and notebooks/etc can be created through *File > New*
 * [custom-dns-fix](scripts/custom-dns-fix) - A horrible temporary workaround for a broken VPC DNS environment. You don't want to use this.
 * [custom-install-s3-browser-extension](scripts/custom-install-s3-browser-extension) - This visual S3 browser extension is pretty easy to install on JupyterLab v3. I was trying to also make it work on JLv1 (for a script that's portable between the two) but never quite got it working.
 

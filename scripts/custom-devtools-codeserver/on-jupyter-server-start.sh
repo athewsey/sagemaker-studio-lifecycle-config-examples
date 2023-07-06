@@ -1,20 +1,36 @@
 #!/bin/bash
-# Configure auto-shutdown and assistive IDE tools (for JupyterLab v3 only)
+# Configure (VS) Code Server alongside JupyterLab IDE tools on SMStudio (for JupyterLab v3 only)
 #
 # This script sets up:
-# - SageMaker Studio Auto-Shutdown (server-side extension excluding UI)
+# - Code Server (as in VSCode) and launcher extension
 # - Amazon CodeWhisperer
 # - JupyterLab S3 browser extension
 # - Code completion, continuous hinting, hover tips, code formatting, and markdown spell-checking
 #   via jupyterlab-lsp
 # - ipycanvas - A library for drawing interactive canvases in notebooks
+#
+# TODO: jupyterlab-unfold, jupyterlab-skip-traceback
+# TODO: MAYBE: jupyterlab-execute-time, stickyland
+#
+# Inspired by:
+# https://github.com/aws-samples/amazon-sagemaker-codeserver/blob/main/install-scripts/studio/install-codeserver.sh
 
 set -eu
 
 ####  CONFIGURATION
-export TIMEOUT_IN_MINS=240  # 4hrs Auto-shutdown time-out
-# Available versions at https://github.com/aws-samples/sagemaker-studio-auto-shutdown-extension
-export AUTO_SHUTDOWN_VER='0.1.5'  # Extension version
+CODE_SERVER_VERSION="4.14.1"
+CODE_SERVER_INSTALL_LOC="/opt/.cs"
+XDG_DATA_HOME="/opt/.xdg/data"
+XDG_CONFIG_HOME="/opt/.xdg/config"
+INSTALL_PYTHON_EXTENSION=1
+CREATE_NEW_CONDA_ENV=1
+CONDA_ENV_LOCATION='/opt/.cs/conda/envs/codeserver_py39'
+CONDA_ENV_PYTHON_VERSION="3.9"
+USE_CUSTOM_EXTENSION_GALLERY=0
+EXTENSION_GALLERY_CONFIG='{{\"serviceUrl\":\"\",\"cacheUrl\":\"\",\"itemUrl\":\"\",\"controlUrl\":\"\",\"recommendationsUrl\":\"\"}}'
+LAUNCHER_ENTRY_TITLE='Code Server'
+PROXY_PATH='codeserver'
+LAB_3_EXTENSION_DOWNLOAD_URL='https://github.com/aws-samples/amazon-sagemaker-codeserver/releases/download/v0.1.5/sagemaker-jproxy-launcher-ext-0.1.3.tar.gz'
 
 
 export AWS_SAGEMAKER_JUPYTERSERVER_IMAGE="${AWS_SAGEMAKER_JUPYTERSERVER_IMAGE:-'jupyter-server'}"
@@ -24,46 +40,9 @@ if [ "$AWS_SAGEMAKER_JUPYTERSERVER_IMAGE" != "jupyter-server-3" ] ; then
     exit 0
 fi
 
-# Create a hidden folder for auto-shutdown artifacts:
-mkdir -p .auto-shutdown
-
-# Create the command-line script for setting the idle timeout
-cat > .auto-shutdown/set-time-interval.sh << EOF
-#!/opt/conda/bin/python
-import json
-import requests
-TIMEOUT=${TIMEOUT_IN_MINS}
-session = requests.Session()
-# Getting the xsrf token first from Jupyter Server
-response = session.get("http://localhost:8888/jupyter/default/tree")
-# calls the idle_checker extension's interface to set the timeout value
-response = session.post("http://localhost:8888/jupyter/default/sagemaker-studio-autoshutdown/idle_checker",
-            json={"idle_time": TIMEOUT, "keep_terminals": False},
-            params={"_xsrf": response.headers['Set-Cookie'].split(";")[0].split("=")[1]})
-if response.status_code == 200:
-    print("Succeeded, idle timeout set to {} minutes".format(TIMEOUT))
-else:
-    print("Error!")
-    print(response.status_code)
-EOF
-chmod +x .auto-shutdown/set-time-interval.sh
-
-# Install wget (not available in default image):
-sudo yum install -y wget
-# Fetch the auto-shutdown tarball from GitHub
-# (Could replace this with a privately hosted S3 copy if you want to avoid internet access)
-wget -O .auto-shutdown/extension.tar.gz \
-  "https://github.com/aws-samples/sagemaker-studio-auto-shutdown-extension/raw/main/sagemaker_studio_autoshutdown-${AUTO_SHUTDOWN_VER}.tar.gz"
-tar xzf .auto-shutdown/extension.tar.gz --directory .auto-shutdown
-
 # Activate the conda environment where Jupyter is installed:
 eval "$(conda shell.bash hook)"
 conda activate studio
-
-# Install and activate auto-shutdown extension:
-pip install --no-dependencies --no-build-isolation -e \
-    "./.auto-shutdown/sagemaker_studio_autoshutdown-${AUTO_SHUTDOWN_VER}"
-jupyter serverextension enable --py sagemaker_studio_autoshutdown
 
 # Find installed versions of important packages so we can pin them to prevent pip overriding:
 BOTO3_VER=`pip show boto3 | grep 'Version:' | sed 's/Version: //'`
@@ -71,7 +50,94 @@ BOTOCORE_VER=`pip show botocore | grep 'Version:' | sed 's/Version: //'`
 JUPYTER_SERVER_VER=`pip show jupyter-server | grep 'Version:' | sed 's/Version: //'`
 JUPYTERLAB_SERVER_VER=`pip show jupyterlab-server | grep 'Version:' | sed 's/Version: //'`
 
+# For Code Server:
+sudo mkdir -p /opt/.cs
+sudo mkdir -p /opt/.xdg
+sudo chown sagemaker-user /opt/.cs
+sudo chown sagemaker-user /opt/.xdg
+export XDG_DATA_HOME=$XDG_DATA_HOME
+export XDG_CONFIG_HOME=$XDG_CONFIG_HOME
+export PATH="$CODE_SERVER_INSTALL_LOC/bin/:$PATH"
+
+# Install code-server standalone:
+mkdir -p ${CODE_SERVER_INSTALL_LOC}/lib ${CODE_SERVER_INSTALL_LOC}/bin
+curl -fL https://github.com/coder/code-server/releases/download/v$CODE_SERVER_VERSION/code-server-$CODE_SERVER_VERSION-linux-amd64.tar.gz \
+| tar -C ${CODE_SERVER_INSTALL_LOC}/lib -xz
+rm -rf ${CODE_SERVER_INSTALL_LOC}/lib/code-server-$CODE_SERVER_VERSION
+mv ${CODE_SERVER_INSTALL_LOC}/lib/code-server-$CODE_SERVER_VERSION-linux-amd64 ${CODE_SERVER_INSTALL_LOC}/lib/code-server-$CODE_SERVER_VERSION
+ln -sf ${CODE_SERVER_INSTALL_LOC}/lib/code-server-$CODE_SERVER_VERSION/bin/code-server ${CODE_SERVER_INSTALL_LOC}/bin/code-server
+
+# Create new conda env for Code Server
+if [ $CREATE_NEW_CONDA_ENV -eq 1 ]
+then
+    conda create --prefix $CONDA_ENV_LOCATION python=$CONDA_ENV_PYTHON_VERSION -y
+    conda config --add envs_dirs "${CONDA_ENV_LOCATION%/*}"
+fi
+
+# Install ms-python extension for Code Server
+if [ $USE_CUSTOM_EXTENSION_GALLERY -eq 0 -a $INSTALL_PYTHON_EXTENSION -eq 1 ]
+then
+    code-server --install-extension ms-python.python --force
+
+    # if the new conda env was created, add configuration to set as default
+    if [ $CREATE_NEW_CONDA_ENV -eq 1 ]
+    then
+        CODE_SERVER_MACHINE_SETTINGS_FILE="$XDG_DATA_HOME/code-server/Machine/settings.json"
+        if grep -q "python.defaultInterpreterPath" "$CODE_SERVER_MACHINE_SETTINGS_FILE"
+        then
+            echo "Default interepreter path is already set."
+        else
+            cat >>$CODE_SERVER_MACHINE_SETTINGS_FILE <<- MACHINESETTINGS
+{
+    "python.defaultInterpreterPath": "$CONDA_ENV_LOCATION/bin"
+}
+MACHINESETTINGS
+        fi
+    fi
+fi
+
+# Use custom extension gallery for Code Server
+EXT_GALLERY_JSON=''
+if [ $USE_CUSTOM_EXTENSION_GALLERY -eq 1 ]
+then
+    EXT_GALLERY_JSON="'EXTENSIONS_GALLERY': '$EXTENSION_GALLERY_CONFIG'"
+fi
+
+# Configure proxy settings and launcher for Code Server:
+JUPYTER_CONFIG_FILE="/home/sagemaker-user/.jupyter/jupyter_notebook_config.py"
+if grep -q "$CODE_SERVER_INSTALL_LOC/bin" "$JUPYTER_CONFIG_FILE"
+then
+    echo "Server-proxy configuration already set in Jupyter notebook config."
+else
+    mkdir -p /home/sagemaker-user/.jupyter
+    cat >>/home/sagemaker-user/.jupyter/jupyter_notebook_config.py <<- NBCONFIG
+c.ServerProxy.servers = {
+    '$PROXY_PATH': {
+        'launcher_entry': {
+                'enabled': True,
+                'title': '$LAUNCHER_ENTRY_TITLE',
+                'icon_path': 'codeserver.svg'
+        },
+        'command': ['$CODE_SERVER_INSTALL_LOC/bin/code-server', '--auth', 'none', '--disable-telemetry', '--bind-addr', '127.0.0.1:{port}'],
+        'environment' : {
+                            'XDG_DATA_HOME' : '$XDG_DATA_HOME', 
+                            'XDG_CONFIG_HOME': '$XDG_CONFIG_HOME',
+                            'SHELL': '/bin/bash',
+                            $EXT_GALLERY_JSON
+                        },
+        'absolute_url': False,
+        'timeout': 30
+    }
+}
+NBCONFIG
+fi
+
+# Install Code Server launcher JL3 extension
+mkdir -p $CODE_SERVER_INSTALL_LOC/lab_ext
+curl -L $LAB_3_EXTENSION_DOWNLOAD_URL > $CODE_SERVER_INSTALL_LOC/lab_ext/sagemaker-jproxy-launcher-ext.tar.gz
+
 # Install:
+# - Code Server launcher extension
 # - Amazon CodeWhisperer extension
 # - JupyterLab S3 browser extension
 # - The core JupyterLab LSP integration and whatever language servers you need (omitting autopep8
@@ -89,6 +155,7 @@ pip install \
     botocore==$BOTOCORE_VER \
     jupyter-server==$JUPYTER_SERVER_VER \
     jupyterlab-server==$JUPYTERLAB_SERVER_VER \
+    $CODE_SERVER_INSTALL_LOC/lab_ext/sagemaker-jproxy-launcher-ext.tar.gz \
     amazon-codewhisperer-jupyterlab-ext \
     ipycanvas \
     jupyterlab-code-formatter black isort \
@@ -98,12 +165,17 @@ pip install \
     'python-lsp-server[flake8,mccabe,pycodestyle,pydocstyle,pyflakes,pylint,rope]' \
     sagemaker \
     scikit-learn
+
 # Some LSP language servers install via JS, not Python. For full list of language servers see:
 # https://jupyterlab-lsp.readthedocs.io/en/latest/Language%20Servers.html
+# Could we do jlpm global add? https://github.com/jupyter-lsp/jupyterlab-lsp/issues/804
 jlpm add --dev bash-language-server dockerfile-language-server-nodejs
 
 # CodeWhisperer needs to be explicitly enabled after install:
 jupyter server extension enable amazon_codewhisperer_jupyterlab_ext
+
+# Code Server extension needs jupyterlab-server-proxy disabled:
+jupyter labextension disable jupyterlab-server-proxy
 
 # Improve autocomplete source links by symlinking /opt packages from local folder and allowing
 # opening of these symlinked files (outside the user home directory):
@@ -154,11 +226,4 @@ conda deactivate
 
 # Once components are installed and configured, restart Jupyter to make sure everything propagates:
 echo "Restarting Jupyter server..."
-nohup supervisorctl -c /etc/supervisor/conf.d/supervisord.conf restart jupyterlabserver \
-    > /dev/null 2>&1
-
-# Wait for 30 seconds to make sure the Jupyter Server is up and running
-sleep 30
-
-# Call the script to set the idle-timeout and activate the auto-shutdown extension
-/home/sagemaker-user/.auto-shutdown/set-time-interval.sh
+restart-jupyter-server

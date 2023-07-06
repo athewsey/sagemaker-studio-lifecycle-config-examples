@@ -7,6 +7,9 @@
 # - Code completion, continuous hinting, hover tips, code formatting, and markdown spell-checking
 #   via jupyterlab-lsp
 # - ipycanvas - A library for drawing interactive canvases in notebooks
+#
+# TODO: Consider adding other exts:
+#   jupyterlab-execute-time, jupyterlab-skip-traceback, jupyterlab-unfold, stickyland?
 
 set -eu
 
@@ -29,6 +32,7 @@ JUPYTERLAB_SERVER_VER=`pip show jupyterlab-server | grep 'Version:' | sed 's/Ver
 
 # Install:
 # - Amazon CodeWhisperer extension
+# - JupyterLab S3 browser extension
 # - The core JupyterLab LSP integration and whatever language servers you need (omitting autopep8
 #   and yapf code formatters for Python, which don't yet have integrations per
 #   https://github.com/jupyter-lsp/jupyterlab-lsp/issues/632)
@@ -38,7 +42,7 @@ JUPYTERLAB_SERVER_VER=`pip show jupyterlab-server | grep 'Version:' | sed 's/Ver
 # - ipycanvas - for some specific notebook demos with interactive canvases
 # - Some specific data science libraries just to improve autocomplete default suggestions:
 #   - Namely sagemaker, scikit-learn
-echo "Installing jupyterlab-lsp and language tools"
+echo "Installing extensions and language tools"
 pip install \
     boto3==$BOTO3_VER \
     botocore==$BOTOCORE_VER \
@@ -55,6 +59,7 @@ pip install \
     scikit-learn
 # Some LSP language servers install via JS, not Python. For full list of language servers see:
 # https://jupyterlab-lsp.readthedocs.io/en/latest/Language%20Servers.html
+# TODO: Could we do jlpm global add? https://github.com/jupyter-lsp/jupyterlab-lsp/issues/804
 jlpm add --dev bash-language-server dockerfile-language-server-nodejs
 
 # CodeWhisperer needs to be explicitly enabled after install:
@@ -92,7 +97,7 @@ FMT_CONFIG_PATH="$FMT_CONFIG_DIR/$FMT_CONFIG_FILE"
 if test -f $FMT_CONFIG_PATH; then
     echo "jupyterlab-code-formatter config file already exists: Skipping default config setup"
 else
-    echo "Configuring jupyterlab-code-formatter format on save and line width"
+    echo "Configuring jupyterlab-code-formatter line width"
     mkdir -p $FMT_CONFIG_DIR
     cat > $FMT_CONFIG_PATH <<EOF
 {"black": {"line_length": 100}, "isort": {"line_length": 100}}
