@@ -1,4 +1,10 @@
-# SageMaker Studio Lifecycle Configuration Samples
+# (CUSTOM) SageMaker Studio Lifecycle Configuration Samples
+
+> ⚠️ This `custom` branch is a holding ground for scripts & tools that I've found useful but aren't quite ready for (or am not planning to PR to) the upstream repository. Use with caution & don't merge into `main`!
+
+### Custom/Non-Standard Scripts
+
+* [custom-dns-fix](scripts/custom-dns-fix) - A horrible temporary workaround for a broken VPC DNS environment. You don't want to use this.
 
 ### Overview
 
