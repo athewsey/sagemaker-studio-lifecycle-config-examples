@@ -4,6 +4,7 @@
 
 ### Custom/Non-Standard Scripts
 
+* [custom-check-jl-version](scripts/custom-check-jl-version) - A snippet showing ways to detect and branch on the current JupyterLab version in Studio LCCs, and which conda environments & JupyterServer restart tools to use in each one.
 * [custom-dns-fix](scripts/custom-dns-fix) - A horrible temporary workaround for a broken VPC DNS environment. You don't want to use this.
 * [custom-install-s3-browser-extension](scripts/custom-install-s3-browser-extension) - This visual S3 browser extension is pretty easy to install on JupyterLab v3. I was trying to also make it work on JLv1 (for a script that's portable between the two) but never quite got it working.
 
