@@ -100,7 +100,7 @@ pip install \
     scikit-learn
 # Some LSP language servers install via JS, not Python. For full list of language servers see:
 # https://jupyterlab-lsp.readthedocs.io/en/latest/Language%20Servers.html
-jlpm add --dev bash-language-server dockerfile-language-server-nodejs
+jlpm add --dev bash-language-server@"<5.0.0" dockerfile-language-server-nodejs
 
 # CodeWhisperer needs to be explicitly enabled after install:
 jupyter server extension enable amazon_codewhisperer_jupyterlab_ext
